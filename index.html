@@ -1,0 +1,1539 @@
+<title>RE 350 Engine Teardown</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap">
+
+<style>
+:root {
+  --bg: #0a0a0c;
+  --bg-elevated: #131318;
+  --bg-panel: #16161c;
+  --bg-card: #1c1c24;
+  --bg-hover: #24242e;
+  --fg: #e8e6f0;
+  --fg-dim: #8a889a;
+  --fg-muted: #5c5a6a;
+  --accent: #c8372d;
+  --accent-glow: rgba(200, 55, 45, 0.25);
+  --accent-light: #e04a3f;
+  --highlight: #f0c040;
+  --highlight-glow: rgba(240, 192, 64, 0.3);
+  --border: #2a2a34;
+  --success: #3ddc84;
+  --radius: 10px;
+  --font-display: 'Space Mono', monospace;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --oil: #e8a020;
+  --heat-hot: #ff2a1a;
+  --heat-cold: #1a6aff;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f0eff6; --bg-elevated: #e8e7ee; --bg-panel: #ffffff;
+    --bg-card: #f0eff6; --bg-hover: #e4e3eb; --fg: #1a1a24;
+    --fg-dim: #5c5a6a; --fg-muted: #8a889a; --border: #d4d3dc;
+    --accent: #b8281e; --accent-glow: rgba(184,40,30,0.15);
+    --accent-light: #d03828; --highlight: #d4a020;
+    --highlight-glow: rgba(212,160,32,0.2);
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #f0eff6; --bg-elevated: #e8e7ee; --bg-panel: #ffffff;
+  --bg-card: #f0eff6; --bg-hover: #e4e3eb; --fg: #1a1a24;
+  --fg-dim: #5c5a6a; --fg-muted: #8a889a; --border: #d4d3dc;
+  --accent: #b8281e; --accent-glow: rgba(184,40,30,0.15);
+  --accent-light: #d03828; --highlight: #d4a020;
+  --highlight-glow: rgba(212,160,32,0.2);
+  color-scheme: light;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px));
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  z-index: 10;
+  gap: 12px;
+}
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.header-logo {
+  width: 30px; height: 30px;
+  background: var(--accent);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-display);
+  font-weight: 700; font-size: 12px; color: #fff;
+}
+.header h1 {
+  font-family: var(--font-display);
+  font-size: 13px; font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--fg);
+}
+.header-sub {
+  font-size: 10px; color: var(--fg-dim);
+  font-weight: 400; letter-spacing: 0.5px;
+}
+
+/* Toolbar */
+.toolbar {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.tbtn, .toolbar label {
+  font-family: var(--font-body);
+  font-size: 11px; font-weight: 500;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--fg);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  user-select: none;
+}
+.tbtn:hover, .toolbar label:hover {
+  background: var(--bg-hover);
+  border-color: var(--fg-muted);
+}
+.tbtn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.tbtn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff; font-weight: 600;
+}
+.tbtn.primary:hover {
+  background: var(--accent-light);
+  border-color: var(--accent-light);
+}
+.tbtn:disabled { opacity: 0.4; cursor: default; }
+.toolbar input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 13px; height: 13px;
+}
+.toolbar .sep {
+  width: 1px; height: 20px;
+  background: var(--border);
+  margin: 0 3px;
+  flex-shrink: 0;
+}
+/* Mode buttons */
+.tbtn[data-mode] { position: relative; }
+.tbtn[data-mode].active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px; left: 20%; right: 20%;
+  height: 2px;
+  background: #fff;
+  border-radius: 1px;
+}
+.mode-oil.active { background: #b07810; border-color: #b07810; }
+.mode-heat.active { background: #a02818; border-color: #a02818; }
+.mode-xray.active { background: #2858a0; border-color: #2858a0; }
+
+/* Main layout */
+.main { display: flex; flex: 1; min-height: 0; }
+
+/* Canvas container */
+.viewer {
+  flex: 7; position: relative; min-width: 0;
+  background: var(--bg);
+}
+.viewer canvas {
+  display: block; width: 100% !important; height: 100% !important;
+}
+
+/* Timeline slider */
+.timeline-bar {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  padding: 8px 20px 10px;
+  background: linear-gradient(transparent, rgba(10,10,12,0.85));
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 6;
+}
+.timeline-bar .tl-label {
+  font-family: var(--font-display);
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+  flex-shrink: 0;
+}
+.timeline-bar input[type="range"] {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  outline: none;
+}
+.timeline-bar input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid #fff;
+  cursor: pointer;
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+.timeline-bar .tl-pct {
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: var(--fg);
+  width: 36px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Side panel */
+.panel {
+  flex: 3; min-width: 260px; max-width: 380px;
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.panel-header {
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.panel-header h2 {
+  font-family: var(--font-display);
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: var(--fg-dim); margin-bottom: 4px;
+}
+.panel-tabs { display: flex; gap: 0; margin-top: 8px; }
+.panel-tab {
+  flex: 1; padding: 7px 4px;
+  font-size: 11px; font-weight: 500;
+  text-align: center; border: none; background: none;
+  color: var(--fg-muted); cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s; font-family: var(--font-body);
+}
+.panel-tab:hover { color: var(--fg-dim); }
+.panel-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* Info section */
+.info-section {
+  padding: 14px; display: none; flex-direction: column;
+  gap: 10px; overflow-y: auto; flex: 1;
+}
+.info-section.active { display: flex; }
+
+.detail-card {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 14px;
+  border: 1px solid var(--border);
+}
+.detail-card .label {
+  font-size: 9px; font-weight: 600;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--fg-muted); margin-bottom: 5px;
+}
+.detail-card .value {
+  font-size: 13px; font-weight: 500;
+  color: var(--fg); line-height: 1.5;
+}
+.detail-card .value.large {
+  font-size: 18px; font-family: var(--font-display);
+  font-weight: 700; color: var(--accent);
+}
+.detail-card + .detail-card { margin-top: 2px; }
+
+.detail-placeholder {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 36px 20px; text-align: center;
+  color: var(--fg-muted);
+}
+.detail-placeholder svg {
+  width: 44px; height: 44px; margin-bottom: 12px; opacity: 0.35;
+}
+.detail-placeholder p { font-size: 12px; line-height: 1.5; }
+
+/* Parts list */
+.parts-list { display: flex; flex-direction: column; gap: 2px; }
+.part-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 12px; border-radius: 6px;
+  cursor: pointer; transition: all 0.15s; font-size: 12px;
+}
+.part-item:hover { background: var(--bg-hover); }
+.part-item.selected { background: var(--accent-glow); }
+.part-color { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.part-name { flex: 1; font-weight: 400; min-width: 0; }
+.part-item input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 13px; height: 13px; flex-shrink: 0;
+}
+
+/* Status bar */
+.status-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 5px max(16px, env(safe-area-inset-right, 0px)) 5px max(16px, env(safe-area-inset-left, 0px));
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border);
+  font-size: 10px; color: var(--fg-muted); flex-shrink: 0;
+}
+.status-bar span { font-variant-numeric: tabular-nums; }
+
+/* Floating labels */
+.part-label-container {
+  position: absolute; top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none; z-index: 5;
+}
+.part-label {
+  position: absolute;
+  font-family: var(--font-display);
+  font-size: 9px; font-weight: 700;
+  letter-spacing: 1px; text-transform: uppercase;
+  color: var(--fg);
+  background: rgba(19,19,24,0.8);
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--border);
+  padding: 3px 7px; border-radius: 4px;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  opacity: 0.85; transition: opacity 0.2s;
+}
+
+/* Mode indicator toast */
+.mode-toast {
+  position: absolute;
+  top: 16px; left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-display);
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  padding: 6px 16px;
+  border-radius: 20px;
+  z-index: 7;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+.mode-toast.show { opacity: 1; }
+.mode-toast.oil { background: rgba(176,120,16,0.9); color: #fff; }
+.mode-toast.heat { background: rgba(160,40,24,0.9); color: #fff; }
+.mode-toast.xray { background: rgba(40,88,160,0.9); color: #fff; }
+
+/* Mobile */
+@media (max-width: 768px) {
+  .main { flex-direction: column; }
+  .viewer { flex: 1; min-height: 280px; }
+  .panel {
+    max-width: none; min-width: auto;
+    max-height: 40vh;
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+  .toolbar { justify-content: flex-start; }
+  .header { flex-wrap: wrap; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
+</style>
+
+<!-- Header -->
+<header class="header">
+  <div class="header-brand">
+    <div class="header-logo">RE</div>
+    <div>
+      <h1>Royal Enfield 350cc <span class="header-sub">Engine Teardown</span></h1>
+    </div>
+  </div>
+  <div class="toolbar">
+    <button class="tbtn primary" id="btn-teardown">⚙ Teardown</button>
+    <button class="tbtn" id="btn-reassemble" disabled>↩ Reassemble</button>
+    <div class="sep"></div>
+    <button class="tbtn mode-oil" data-mode="oil" id="btn-oil">🛢 Oil Flow</button>
+    <button class="tbtn mode-heat" data-mode="heat" id="btn-heat">🌡 Heat Map</button>
+    <button class="tbtn mode-xray" data-mode="xray" id="btn-xray">✦ X-Ray</button>
+    <div class="sep"></div>
+    <label><input type="checkbox" id="chk-wireframe"> Wire</label>
+    <label><input type="checkbox" id="chk-autorotate"> Rotate</label>
+    <label><input type="checkbox" id="chk-labels" checked> Labels</label>
+  </div>
+</header>
+
+<!-- Main content -->
+<div class="main">
+  <div class="viewer" id="viewer-container">
+    <div class="part-label-container" id="label-container"></div>
+    <div class="mode-toast" id="mode-toast"></div>
+    <!-- Timeline -->
+    <div class="timeline-bar">
+      <span class="tl-label">Explode</span>
+      <input type="range" id="timeline-slider" min="0" max="100" value="0">
+      <span class="tl-pct" id="timeline-pct">0%</span>
+    </div>
+  </div>
+
+  <aside class="panel">
+    <div class="panel-header">
+      <h2>Inspector</h2>
+      <div class="panel-tabs">
+        <button class="panel-tab active" data-tab="details">Details</button>
+        <button class="panel-tab" data-tab="parts">Parts List</button>
+      </div>
+    </div>
+    <div class="info-section active" id="tab-details">
+      <div class="detail-placeholder" id="placeholder">
+        <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="24" cy="24" r="18"/>
+          <path d="M24 14v10l7 7"/>
+        </svg>
+        <p>Click on any engine part to inspect its details and watch it animate into position</p>
+      </div>
+      <div id="part-details" hidden>
+        <div class="detail-card"><div class="label">Component</div><div class="value large" id="detail-name">—</div></div>
+        <div class="detail-card"><div class="label">Function</div><div class="value" id="detail-function">—</div></div>
+        <div class="detail-card"><div class="label">Material</div><div class="value" id="detail-material">—</div></div>
+        <div class="detail-card"><div class="label">Specifications</div><div class="value" id="detail-specs">—</div></div>
+        <div class="detail-card"><div class="label">Weight</div><div class="value" id="detail-weight">—</div></div>
+      </div>
+    </div>
+    <div class="info-section" id="tab-parts">
+      <div class="parts-list" id="parts-list"></div>
+    </div>
+  </aside>
+</div>
+
+<div class="status-bar">
+  <span id="status-text">Ready — Orbit: drag · Zoom: scroll · Pan: right-drag</span>
+  <span id="status-parts">0 parts</span>
+</div>
+
+<!-- Three.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+<script>
+(function() {
+  'use strict';
+
+  // ═══════════════════════════════════════════
+  // WEB AUDIO — Mechanical Sound Effects
+  // ═══════════════════════════════════════════
+  let audioCtx = null;
+  function ensureAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  }
+
+  function playClick(pitch, duration) {
+    try {
+      ensureAudio();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      const now = audioCtx.currentTime;
+
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(pitch || 120, now);
+      osc.frequency.exponentialRampToValueAtTime(40, now + (duration || 0.08));
+
+      gain.gain.setValueAtTime(0.15, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + (duration || 0.08));
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + (duration || 0.08));
+    } catch(e) { /* audio not available */ }
+  }
+
+  function playMetalClank() {
+    try {
+      ensureAudio();
+      const now = audioCtx.currentTime;
+      // Layer 1: sharp attack
+      const osc1 = audioCtx.createOscillator();
+      const g1 = audioCtx.createGain();
+      osc1.type = 'triangle';
+      osc1.frequency.setValueAtTime(800, now);
+      osc1.frequency.exponentialRampToValueAtTime(200, now + 0.12);
+      g1.gain.setValueAtTime(0.12, now);
+      g1.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+      osc1.connect(g1); g1.connect(audioCtx.destination);
+      osc1.start(now); osc1.stop(now + 0.15);
+
+      // Layer 2: noise burst
+      const bufLen = audioCtx.sampleRate * 0.06;
+      const buf = audioCtx.createBuffer(1, bufLen, audioCtx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < bufLen; i++) data[i] = (Math.random() * 2 - 1) * 0.3;
+      const noise = audioCtx.createBufferSource();
+      noise.buffer = buf;
+      const gn = audioCtx.createGain();
+      gn.gain.setValueAtTime(0.08, now);
+      gn.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+      noise.connect(gn); gn.connect(audioCtx.destination);
+      noise.start(now); noise.stop(now + 0.06);
+    } catch(e) {}
+  }
+
+  function playWhoosh() {
+    try {
+      ensureAudio();
+      const now = audioCtx.currentTime;
+      const bufLen = audioCtx.sampleRate * 0.3;
+      const buf = audioCtx.createBuffer(1, bufLen, audioCtx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < bufLen; i++) {
+        const env = Math.sin((i / bufLen) * Math.PI);
+        data[i] = (Math.random() * 2 - 1) * env * 0.06;
+      }
+      const src = audioCtx.createBufferSource();
+      src.buffer = buf;
+      const filter = audioCtx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(600, now);
+      filter.frequency.linearRampToValueAtTime(1200, now + 0.15);
+      filter.frequency.linearRampToValueAtTime(400, now + 0.3);
+      filter.Q.value = 2;
+      src.connect(filter); filter.connect(audioCtx.destination);
+      src.start(now); src.stop(now + 0.3);
+    } catch(e) {}
+  }
+
+  // ═══════════════════════════════════════════
+  // ENGINE PART DATA
+  // ═══════════════════════════════════════════
+  // teardownOrder: sequential removal order (0 = first removed)
+  // heatLevel: 0 (coldest) to 1 (hottest) for heat map
+  // oilPath: whether oil flows through this part
+  // xrayOuter: whether this is an outer casing part for x-ray mode
+  const ENGINE_PARTS = [
+    {
+      id: 'crankcase', name: 'Crankcase',
+      function: 'Houses the crankshaft and transmission. The structural backbone of the engine, providing mounting points for all major components and containing the lubricating oil sump.',
+      material: 'Cast Aluminium Alloy (A356-T6)', specs: '346cc displacement, split-case design', weight: '4.2 kg',
+      color: 0x6e6e78, offset: [0, -0.8, 0], explode: [0, -2.5, 0],
+      teardownOrder: 12, heatLevel: 0.35, oilPath: true, xrayOuter: true
+    },
+    {
+      id: 'cylinder', name: 'Cylinder Barrel',
+      function: 'Contains the piston and provides the combustion chamber walls. Features cooling fins cast directly into the barrel for air-cooled heat dissipation.',
+      material: 'Cast Iron with Aluminium Fins', specs: '72mm bore, integral cooling fins', weight: '3.1 kg',
+      color: 0x808090, offset: [0, 0.6, 0], explode: [0, 3.0, 0],
+      teardownOrder: 5, heatLevel: 0.75, oilPath: true, xrayOuter: true
+    },
+    {
+      id: 'cylinder-head', name: 'Cylinder Head',
+      function: 'Seals the top of the cylinder, houses intake/exhaust valves and spark plug. Shapes the combustion chamber geometry for optimal flame propagation.',
+      material: 'Aluminium Alloy with Hardened Valve Seats', specs: '2-valve OHC, hemispherical chamber', weight: '2.4 kg',
+      color: 0x707882, offset: [0, 2.0, 0], explode: [0, 5.5, 0],
+      teardownOrder: 2, heatLevel: 0.9, oilPath: true, xrayOuter: true
+    },
+    {
+      id: 'head-cover', name: 'Rocker Cover',
+      function: 'Protects the valve train assembly (rockers, camshaft) from debris and retains lubricating oil around the top-end components.',
+      material: 'Polished Aluminium Alloy', specs: 'Sealed with cork gasket', weight: '0.6 kg',
+      color: 0x9a9aaa, offset: [0, 3.0, 0], explode: [0, 7.5, 0],
+      teardownOrder: 0, heatLevel: 0.55, oilPath: false, xrayOuter: true
+    },
+    {
+      id: 'piston', name: 'Piston Assembly',
+      function: 'Converts combustion gas pressure into linear force transmitted through the connecting rod to the crankshaft. Fitted with compression and oil-control rings.',
+      material: 'Forged Aluminium with MoS₂ Coating', specs: '72mm diameter, 2 compression + 1 oil ring', weight: '0.38 kg',
+      color: 0xc0b870, offset: [0, 0.6, 0.0], explode: [2.5, 2.0, 2.0],
+      teardownOrder: 6, heatLevel: 1.0, oilPath: true, xrayOuter: false
+    },
+    {
+      id: 'crankshaft', name: 'Crankshaft',
+      function: 'Converts the linear reciprocating motion of the piston into rotational motion. Dynamically balanced with counterweights to minimize vibration.',
+      material: 'Forged EN24 Steel, Nitrided Journals', specs: '81.5mm stroke, single-throw', weight: '3.8 kg',
+      color: 0xb0b0b8, offset: [0, -0.8, 0], explode: [-3.0, -2.0, 2.0],
+      teardownOrder: 13, heatLevel: 0.5, oilPath: true, xrayOuter: false
+    },
+    {
+      id: 'cam-chain', name: 'Cam Chain & Tensioner',
+      function: 'Drives the overhead camshaft from the crankshaft at half engine speed. The hydraulic tensioner maintains correct chain slack automatically.',
+      material: 'Hardened Carbon Steel Roller Chain', specs: '#25 chain, hydraulic tensioner', weight: '0.25 kg',
+      color: 0x505058, offset: [0.6, 0.8, 0.6], explode: [3.0, 1.0, 3.0],
+      teardownOrder: 4, heatLevel: 0.3, oilPath: true, xrayOuter: false
+    },
+    {
+      id: 'clutch', name: 'Clutch Assembly',
+      function: 'Multi-plate wet clutch that connects/disconnects engine power from the gearbox. Oil-bathed for smooth engagement and heat dissipation.',
+      material: 'Steel plates, Cork-based Friction Material', specs: '6-plate wet clutch, cable-actuated', weight: '1.2 kg',
+      color: 0x8a7a60, offset: [0, -0.8, -1.2], explode: [0, -1.5, -4.0],
+      teardownOrder: 10, heatLevel: 0.45, oilPath: true, xrayOuter: false
+    },
+    {
+      id: 'gearbox', name: 'Gearbox (5-Speed)',
+      function: 'Provides five selectable gear ratios to match engine speed to road speed. Constant-mesh design with sliding dog engagement.',
+      material: 'Case-Hardened Alloy Steel Gears', specs: '5-speed, 1-down 4-up pattern', weight: '2.8 kg',
+      color: 0x707078, offset: [0, -1.6, -0.8], explode: [0, -4.0, -3.0],
+      teardownOrder: 11, heatLevel: 0.3, oilPath: true, xrayOuter: false
+    },
+    {
+      id: 'oil-pump', name: 'Oil Pump',
+      function: 'Pressurises engine oil from the sump and circulates it through galleries to all bearing surfaces, the valve train, and the piston cooling jet.',
+      material: 'Sintered Iron Gerotor', specs: 'Trochoid type, 15 L/min at 3000 rpm', weight: '0.4 kg',
+      color: 0x607050, offset: [-1.0, -1.6, 0.4], explode: [-3.5, -3.5, 1.5],
+      teardownOrder: 9, heatLevel: 0.2, oilPath: true, xrayOuter: false
+    },
+    {
+      id: 'stator', name: 'Alternator / Flywheel',
+      function: 'Generates AC electrical power for ignition, lighting, and battery charging. The heavy flywheel smooths out firing impulses for the characteristic thump.',
+      material: 'Copper Windings, NdFeB Magnets, Steel', specs: '12V, 13A rated output', weight: '2.1 kg',
+      color: 0x706848, offset: [1.2, -0.8, 0], explode: [4.5, -1.0, 0],
+      teardownOrder: 8, heatLevel: 0.15, oilPath: false, xrayOuter: false
+    },
+    {
+      id: 'exhaust-port', name: 'Exhaust Flange',
+      function: 'Connects the cylinder head exhaust port to the exhaust header pipe. Sealed with a crush copper gasket to prevent exhaust leaks.',
+      material: 'Mild Steel, Zinc-plated', specs: 'Stud-mounted, 38mm bore', weight: '0.3 kg',
+      color: 0x885830, offset: [0, 1.6, -1.2], explode: [0, 3.5, -4.0],
+      teardownOrder: 3, heatLevel: 0.85, oilPath: false, xrayOuter: false
+    },
+    {
+      id: 'intake', name: 'Intake Manifold',
+      function: 'Connects the throttle body/carburettor to the cylinder head intake port. Shaped to promote swirl in the incoming charge for better combustion.',
+      material: 'Glass-filled Nylon Composite', specs: 'EFI throttle body mount, 32mm', weight: '0.2 kg',
+      color: 0x505860, offset: [0, 1.6, 1.2], explode: [0, 3.5, 4.0],
+      teardownOrder: 1, heatLevel: 0.2, oilPath: false, xrayOuter: false
+    },
+    {
+      id: 'spark-plug', name: 'Spark Plug',
+      function: 'Provides precisely timed high-voltage spark to ignite the compressed air-fuel mixture. The ceramic insulator withstands extreme thermal cycling.',
+      material: 'Nickel Alloy Electrode, Alumina Ceramic', specs: 'NGK CR8E, 0.7mm gap', weight: '0.05 kg',
+      color: 0xe0d8c0, offset: [0.6, 2.8, 0], explode: [2.5, 7.0, 0],
+      teardownOrder: 7, heatLevel: 0.95, oilPath: false, xrayOuter: false
+    },
+  ];
+
+  // Sort by teardown order for sequential animation
+  const teardownSequence = [...ENGINE_PARTS].sort((a, b) => a.teardownOrder - b.teardownOrder);
+  const reassembleSequence = [...teardownSequence].reverse();
+
+  // ═══════════════════════════════════════════
+  // THREE.JS SETUP
+  // ═══════════════════════════════════════════
+  const container = document.getElementById('viewer-container');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0c0c10);
+  scene.fog = new THREE.FogExp2(0x0c0c10, 0.015);
+
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 200);
+  camera.position.set(8, 5, 8);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.2;
+  container.insertBefore(renderer.domElement, container.firstChild);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.minDistance = 3;
+  controls.maxDistance = 25;
+  controls.target.set(0, 0.5, 0);
+  controls.update();
+
+  // ═══════════════════════════════════════════
+  // GARAGE ENVIRONMENT
+  // ═══════════════════════════════════════════
+
+  // Concrete floor
+  const floorGeo = new THREE.PlaneGeometry(40, 40);
+  const floorMat = new THREE.MeshStandardMaterial({
+    color: 0x2a2a2e,
+    roughness: 0.92,
+    metalness: 0.05,
+  });
+  const floor = new THREE.Mesh(floorGeo, floorMat);
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -3;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  // Subtle concrete texture via canvas
+  (function makeConcreteTexture() {
+    const c = document.createElement('canvas');
+    c.width = 512; c.height = 512;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#2a2a2e';
+    ctx.fillRect(0, 0, 512, 512);
+    // Random noise
+    for (let i = 0; i < 30000; i++) {
+      const x = Math.random() * 512;
+      const y = Math.random() * 512;
+      const val = 30 + Math.random() * 30;
+      ctx.fillStyle = `rgba(${val},${val},${val + 4},0.15)`;
+      ctx.fillRect(x, y, 1 + Math.random() * 2, 1 + Math.random() * 2);
+    }
+    // Cracks
+    ctx.strokeStyle = 'rgba(20,20,22,0.3)';
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i < 8; i++) {
+      ctx.beginPath();
+      let cx = Math.random() * 512, cy = Math.random() * 512;
+      ctx.moveTo(cx, cy);
+      for (let j = 0; j < 6; j++) {
+        cx += (Math.random() - 0.5) * 80;
+        cy += (Math.random() - 0.5) * 80;
+        ctx.lineTo(cx, cy);
+      }
+      ctx.stroke();
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(4, 4);
+    floorMat.map = tex;
+    floorMat.needsUpdate = true;
+  })();
+
+  // Grid lines on floor
+  const gridHelper = new THREE.GridHelper(20, 40, 0x333340, 0x1a1a22);
+  gridHelper.position.y = -2.99;
+  scene.add(gridHelper);
+
+  // ── Lighting (garage) ──
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.25);
+  scene.add(ambientLight);
+
+  // Volumetric look — overhead workshop light
+  const mainLight = new THREE.SpotLight(0xfff4e8, 1.5, 30, Math.PI / 5, 0.6, 1.5);
+  mainLight.position.set(0, 14, 2);
+  mainLight.castShadow = true;
+  mainLight.shadow.mapSize.set(1024, 1024);
+  mainLight.shadow.camera.near = 2;
+  mainLight.shadow.camera.far = 25;
+  scene.add(mainLight);
+  mainLight.target.position.set(0, 0, 0);
+  scene.add(mainLight.target);
+
+  // Light cone visual (volumetric feel)
+  const coneGeo = new THREE.CylinderGeometry(0.1, 5, 16, 32, 1, true);
+  const coneMat = new THREE.MeshBasicMaterial({
+    color: 0xfff4e8, transparent: true, opacity: 0.018,
+    side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending
+  });
+  const lightCone = new THREE.Mesh(coneGeo, coneMat);
+  lightCone.position.set(0, 6, 2);
+  scene.add(lightCone);
+
+  // Fill
+  const fillLight = new THREE.DirectionalLight(0xc8d8ff, 0.2);
+  fillLight.position.set(-5, 4, -6);
+  scene.add(fillLight);
+  const rimLight = new THREE.DirectionalLight(0xffd0b0, 0.15);
+  rimLight.position.set(2, 1, -8);
+  scene.add(rimLight);
+
+  // ── Floating dust particles ──
+  const DUST_COUNT = 600;
+  const dustPositions = new Float32Array(DUST_COUNT * 3);
+  const dustVelocities = [];
+  for (let i = 0; i < DUST_COUNT; i++) {
+    dustPositions[i * 3] = (Math.random() - 0.5) * 16;
+    dustPositions[i * 3 + 1] = Math.random() * 12 - 2;
+    dustPositions[i * 3 + 2] = (Math.random() - 0.5) * 16;
+    dustVelocities.push({
+      x: (Math.random() - 0.5) * 0.003,
+      y: Math.random() * 0.002 + 0.001,
+      z: (Math.random() - 0.5) * 0.003,
+    });
+  }
+  const dustGeo = new THREE.BufferGeometry();
+  dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPositions, 3));
+  const dustMat = new THREE.PointsMaterial({
+    color: 0xfff8e0, size: 0.04, transparent: true, opacity: 0.4,
+    blending: THREE.AdditiveBlending, depthWrite: false
+  });
+  const dustParticles = new THREE.Points(dustGeo, dustMat);
+  scene.add(dustParticles);
+
+  function updateDust() {
+    const pos = dustGeo.attributes.position.array;
+    for (let i = 0; i < DUST_COUNT; i++) {
+      const v = dustVelocities[i];
+      pos[i*3]   += v.x;
+      pos[i*3+1] += v.y;
+      pos[i*3+2] += v.z;
+      // Wrap
+      if (pos[i*3+1] > 10) pos[i*3+1] = -2;
+      if (Math.abs(pos[i*3]) > 8) pos[i*3] *= -0.9;
+      if (Math.abs(pos[i*3+2]) > 8) pos[i*3+2] *= -0.9;
+    }
+    dustGeo.attributes.position.needsUpdate = true;
+  }
+
+  // ═══════════════════════════════════════════
+  // BUILD ENGINE PARTS (same as before)
+  // ═══════════════════════════════════════════
+  const engineGroup = new THREE.Group();
+  scene.add(engineGroup);
+
+  const partMap = {};
+  const originalPositions = {};
+  const explodedPositions = {};
+  const originalMaterials = {}; // Store original materials for mode switching
+
+  function createMaterial(color) {
+    return new THREE.MeshStandardMaterial({
+      color, metalness: 0.6, roughness: 0.35,
+    });
+  }
+
+  function buildCrankcase() {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.8, 2.4), createMaterial(0x6e6e78));
+    body.castShadow = true; g.add(body);
+    const front = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.2, 1.8, 12), createMaterial(0x686870));
+    front.position.set(0,0,1.0); front.castShadow = true; g.add(front);
+    const sump = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.6, 1.6), createMaterial(0x5e5e68));
+    sump.position.set(0,-1.0,0); sump.castShadow = true; g.add(sump);
+    [-1,1].forEach(s => { const ear = new THREE.Mesh(new THREE.BoxGeometry(0.3,0.4,0.5), createMaterial(0x6e6e78)); ear.position.set(s*1.8,-0.5,0); g.add(ear); });
+    return g;
+  }
+  function buildCylinder() {
+    const g = new THREE.Group();
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(1.05,1.15,2.2,16), createMaterial(0x808090));
+    barrel.castShadow = true; g.add(barrel);
+    for (let i=0;i<8;i++) { const fin = new THREE.Mesh(new THREE.CylinderGeometry(1.4,1.4,0.06,16), createMaterial(0x8a8a98)); fin.position.y=-0.8+i*0.24; g.add(fin); }
+    return g;
+  }
+  function buildCylinderHead() {
+    const g = new THREE.Group();
+    const head = new THREE.Mesh(new THREE.CylinderGeometry(1.15,1.1,0.9,16), createMaterial(0x707882));
+    head.castShadow = true; g.add(head);
+    for (let i=0;i<5;i++) { const fin = new THREE.Mesh(new THREE.CylinderGeometry(1.5,1.5,0.05,16), createMaterial(0x7a828c)); fin.position.y=-0.3+i*0.18; g.add(fin); }
+    [-0.3,0.3].forEach(z => { const v = new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,0.3,8), createMaterial(0x606870)); v.position.set(0,0.5,z); g.add(v); });
+    return g;
+  }
+  function buildHeadCover() {
+    const g = new THREE.Group();
+    const cover = new THREE.Mesh(new THREE.SphereGeometry(0.9,16,8,0,Math.PI*2,0,Math.PI/2), createMaterial(0x9a9aaa));
+    cover.castShadow = true; g.add(cover);
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.9,1.0,0.3,16), createMaterial(0x8a8a9a));
+    base.position.y = -0.15; g.add(base);
+    const badge = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.3,0.05), createMaterial(0xc8372d));
+    badge.position.set(0,0.3,0.88); g.add(badge);
+    return g;
+  }
+  function buildPiston() {
+    const g = new THREE.Group();
+    const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.65,0.65,0.5,16), createMaterial(0xc0b870));
+    crown.castShadow = true; g.add(crown);
+    const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.63,0.60,0.8,16), createMaterial(0xb0a860));
+    skirt.position.y = -0.6; g.add(skirt);
+    [0.15,0.0,-0.15].forEach(y => { const ring = new THREE.Mesh(new THREE.TorusGeometry(0.66,0.03,8,24), createMaterial(0x909090)); ring.position.y=y; ring.rotation.x=Math.PI/2; g.add(ring); });
+    const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.12,2.0,8), createMaterial(0xa0a0a8));
+    rod.position.y = -1.6; g.add(rod);
+    const bigEnd = new THREE.Mesh(new THREE.TorusGeometry(0.3,0.1,8,16), createMaterial(0x909098));
+    bigEnd.position.y = -2.6; bigEnd.rotation.x = Math.PI/2; g.add(bigEnd);
+    return g;
+  }
+  function buildCrankshaft() {
+    const g = new THREE.Group();
+    const mj = new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.35,3.0,12), createMaterial(0xb0b0b8));
+    mj.rotation.z = Math.PI/2; mj.castShadow = true; g.add(mj);
+    [-0.3,0.3].forEach(x => { const cw = new THREE.Mesh(new THREE.CylinderGeometry(0.7,0.7,0.25,16), createMaterial(0xa0a0a8)); cw.position.set(x,0,0); cw.rotation.z=Math.PI/2; g.add(cw); });
+    const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,0.8,8), createMaterial(0xc0c0c8));
+    pin.position.set(0,0.5,0); pin.rotation.z=Math.PI/2; g.add(pin);
+    return g;
+  }
+  function buildCamChain() {
+    const g = new THREE.Group();
+    for (let i=0;i<20;i++) { const link = new THREE.Mesh(new THREE.BoxGeometry(0.08,0.12,0.06), createMaterial(0x505058)); const a=(i/20)*Math.PI*2; link.position.set(Math.cos(a)*0.4, Math.sin(a)*2.0, 0); link.rotation.z=a; g.add(link); }
+    [1.8,-1.8].forEach(y => { const sp = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,0.15,12), createMaterial(0x606068)); sp.position.y=y; sp.rotation.x=Math.PI/2; g.add(sp); });
+    const t = new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,0.8,8), createMaterial(0x404048));
+    t.position.set(0.5,0,0); g.add(t);
+    return g;
+  }
+  function buildClutch() {
+    const g = new THREE.Group();
+    const basket = new THREE.Mesh(new THREE.CylinderGeometry(0.9,0.9,0.6,20), createMaterial(0x8a7a60));
+    basket.rotation.x=Math.PI/2; basket.castShadow=true; g.add(basket);
+    for (let i=0;i<6;i++) { const pl = new THREE.Mesh(new THREE.CylinderGeometry(0.8,0.8,0.04,20), createMaterial(i%2===0?0xa09070:0x909090)); pl.rotation.x=Math.PI/2; pl.position.z=-0.25+i*0.08; g.add(pl); }
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,0.8,12), createMaterial(0x707070));
+    hub.rotation.x=Math.PI/2; g.add(hub);
+    return g;
+  }
+  function buildGearbox() {
+    const g = new THREE.Group();
+    const c = new THREE.Mesh(new THREE.BoxGeometry(2.0,1.2,1.4), createMaterial(0x707078));
+    c.castShadow=true; g.add(c);
+    [-0.3,0.3].forEach(y => { const s = new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,2.4,8), createMaterial(0x909098)); s.position.y=y; s.rotation.z=Math.PI/2; g.add(s); });
+    [[-0.6,-0.3],[-0.2,0.3],[0.2,-0.3],[0.5,0.3],[0.8,-0.3]].forEach(([x,y]) => { const gr = new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.35,0.15,16), createMaterial(0xa0a0a8)); gr.position.set(x,y,0); gr.rotation.z=Math.PI/2; g.add(gr); });
+    return g;
+  }
+  function buildOilPump() {
+    const g = new THREE.Group();
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.4,0.6,12), createMaterial(0x607050));
+    b.castShadow=true; g.add(b);
+    const inlet = new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,0.6,8), createMaterial(0x506040));
+    inlet.position.set(0,-0.1,0.5); inlet.rotation.x=Math.PI/2; g.add(inlet);
+    const outlet = new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,0.5,8), createMaterial(0x506040));
+    outlet.position.set(0,0.3,0.3); g.add(outlet);
+    return g;
+  }
+  function buildStator() {
+    const g = new THREE.Group();
+    const fw = new THREE.Mesh(new THREE.CylinderGeometry(1.0,1.0,0.5,24), createMaterial(0x706848));
+    fw.rotation.z=Math.PI/2; fw.castShadow=true; g.add(fw);
+    for (let i=0;i<8;i++) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.15,0.3,0.15), createMaterial(0x404040)); const a=(i/8)*Math.PI*2; m.position.set(0,Math.cos(a)*0.75,Math.sin(a)*0.75); g.add(m); }
+    const sr = new THREE.Mesh(new THREE.TorusGeometry(0.6,0.1,8,24), createMaterial(0xb07030));
+    sr.rotation.y=Math.PI/2; sr.position.x=0.35; g.add(sr);
+    return g;
+  }
+  function buildExhaustPort() {
+    const g = new THREE.Group();
+    const f = new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.4,0.25,12), createMaterial(0x885830));
+    f.rotation.x=Math.PI/2; f.castShadow=true; g.add(f);
+    const p = new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.28,1.0,12), createMaterial(0x7a5028));
+    p.rotation.x=Math.PI/2; p.position.z=-0.6; g.add(p);
+    [-0.25,0.25].forEach(x => { const st = new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,0.4,6), createMaterial(0x999999)); st.position.set(x,0,0.15); g.add(st); });
+    return g;
+  }
+  function buildIntake() {
+    const g = new THREE.Group();
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.32,0.8,12), createMaterial(0x505860));
+    m.rotation.x=Math.PI/2; m.castShadow=true; g.add(m);
+    const tb = new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.35,0.4,12), createMaterial(0x484850));
+    tb.rotation.x=Math.PI/2; tb.position.z=0.6; g.add(tb);
+    const s = new THREE.Mesh(new THREE.BoxGeometry(0.15,0.15,0.1), createMaterial(0x303038));
+    s.position.set(0.35,0,0.6); g.add(s);
+    return g;
+  }
+  function buildSparkPlug() {
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,0.6,8), createMaterial(0xe0d8c0)));
+    const hex = new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,0.2,6), createMaterial(0xa0a0a0));
+    hex.position.y=-0.2; g.add(hex);
+    const th = new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,0.3,8), createMaterial(0x888888));
+    th.position.y=-0.45; g.add(th);
+    const el = new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,0.1,6), createMaterial(0xcccccc));
+    el.position.y=-0.65; g.add(el);
+    const boot = new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.1,0.4,8), createMaterial(0x303030));
+    boot.position.y=0.5; g.add(boot);
+    return g;
+  }
+
+  const builders = {
+    'crankcase': buildCrankcase, 'cylinder': buildCylinder,
+    'cylinder-head': buildCylinderHead, 'head-cover': buildHeadCover,
+    'piston': buildPiston, 'crankshaft': buildCrankshaft,
+    'cam-chain': buildCamChain, 'clutch': buildClutch,
+    'gearbox': buildGearbox, 'oil-pump': buildOilPump,
+    'stator': buildStator, 'exhaust-port': buildExhaustPort,
+    'intake': buildIntake, 'spark-plug': buildSparkPlug,
+  };
+
+  ENGINE_PARTS.forEach(part => {
+    const meshGroup = builders[part.id]();
+    meshGroup.position.set(...part.offset);
+    meshGroup.userData = { partId: part.id, partData: part };
+    meshGroup.traverse(child => {
+      if (child.isMesh) {
+        child.userData.partId = part.id;
+        child.userData.partData = part;
+      }
+    });
+    engineGroup.add(meshGroup);
+    partMap[part.id] = meshGroup;
+    originalPositions[part.id] = new THREE.Vector3(...part.offset);
+    explodedPositions[part.id] = new THREE.Vector3(
+      part.offset[0] + part.explode[0],
+      part.offset[1] + part.explode[1],
+      part.offset[2] + part.explode[2]
+    );
+    // Store original materials
+    const mats = [];
+    meshGroup.traverse(c => { if (c.isMesh) mats.push({ mesh: c, material: c.material }); });
+    originalMaterials[part.id] = mats;
+  });
+
+  document.getElementById('status-parts').textContent = ENGINE_PARTS.length + ' parts';
+
+  // ═══════════════════════════════════════════
+  // RAYCASTING / SELECTION + ASSEMBLY ANIM
+  // ═══════════════════════════════════════════
+  const raycaster = new THREE.Raycaster();
+  const mouse = new THREE.Vector2();
+  let selectedPartId = null;
+  let highlightMeshes = [];
+  let partAnimating = false;
+
+  function clearHighlight() {
+    highlightMeshes.forEach(({mesh, originalMat}) => { mesh.material = originalMat; });
+    highlightMeshes = [];
+  }
+
+  function highlightPart(partId) {
+    clearHighlight();
+    const group = partMap[partId];
+    if (!group) return;
+    group.traverse(child => {
+      if (child.isMesh) {
+        const origMat = child.material;
+        const hlMat = origMat.clone();
+        hlMat.emissive = new THREE.Color(0xf0c040);
+        hlMat.emissiveIntensity = 0.35;
+        highlightMeshes.push({ mesh: child, originalMat: origMat });
+        child.material = hlMat;
+      }
+    });
+  }
+
+  // Premium: single part assembly animation on click
+  function animatePartBounce(partId) {
+    if (partAnimating) return;
+    partAnimating = true;
+    const group = partMap[partId];
+    const orig = group.position.clone();
+    const startTime = performance.now();
+    const dur = 600;
+    // Pop out then back in
+    const popOffset = new THREE.Vector3(
+      (Math.random() - 0.5) * 1.5,
+      1.5 + Math.random(),
+      (Math.random() - 0.5) * 1.5
+    );
+
+    playMetalClank();
+
+    function step(now) {
+      const t = Math.min((now - startTime) / dur, 1);
+      // Out then back: quadratic out-in
+      let frac;
+      if (t < 0.35) {
+        frac = t / 0.35;
+        frac = 1 - (1 - frac) * (1 - frac); // ease out
+      } else {
+        frac = 1 - (t - 0.35) / 0.65;
+        frac = frac * frac; // ease in
+      }
+      group.position.copy(orig).addScaledVector(popOffset, frac);
+      // Slight rotation
+      group.rotation.y = frac * 0.3;
+      group.rotation.x = frac * 0.15;
+
+      if (t < 1) {
+        requestAnimationFrame(step);
+      } else {
+        group.position.copy(orig);
+        group.rotation.set(0, 0, 0);
+        partAnimating = false;
+      }
+    }
+    requestAnimationFrame(step);
+  }
+
+  function selectPart(partId) {
+    selectedPartId = partId;
+    highlightPart(partId);
+    animatePartBounce(partId);
+    const data = ENGINE_PARTS.find(p => p.id === partId);
+    if (!data) return;
+    document.getElementById('placeholder').hidden = true;
+    document.getElementById('part-details').hidden = false;
+    document.getElementById('detail-name').textContent = data.name;
+    document.getElementById('detail-function').textContent = data.function;
+    document.getElementById('detail-material').textContent = data.material;
+    document.getElementById('detail-specs').textContent = data.specs;
+    document.getElementById('detail-weight').textContent = data.weight;
+    document.querySelectorAll('.part-item').forEach(el => {
+      el.classList.toggle('selected', el.dataset.partId === partId);
+    });
+    switchTab('details');
+  }
+
+  renderer.domElement.addEventListener('click', (e) => {
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(engineGroup.children, true);
+    if (intersects.length > 0) {
+      const partId = intersects[0].object.userData.partId;
+      if (partId) selectPart(partId);
+    } else {
+      clearHighlight();
+      selectedPartId = null;
+      document.getElementById('placeholder').hidden = false;
+      document.getElementById('part-details').hidden = true;
+      document.querySelectorAll('.part-item').forEach(el => el.classList.remove('selected'));
+    }
+  });
+
+  // ═══════════════════════════════════════════
+  // SEQUENTIAL TEARDOWN / REASSEMBLE
+  // ═══════════════════════════════════════════
+  let isTornDown = false;
+  let seqAnimating = false;
+  let explodeProgress = 0; // 0..1 for timeline
+
+  function sequentialAnimate(sequence, targets, onDone) {
+    if (seqAnimating) return;
+    seqAnimating = true;
+    let idx = 0;
+    const partDur = 400;
+    const stagger = 300;
+
+    function animateOne() {
+      if (idx >= sequence.length) {
+        seqAnimating = false;
+        if (onDone) onDone();
+        return;
+      }
+      const part = sequence[idx];
+      const mesh = partMap[part.id];
+      const startPos = mesh.position.clone();
+      const endPos = targets[part.id];
+      const startTime = performance.now();
+
+      // Sound
+      playClick(80 + idx * 15, 0.06);
+
+      function step(now) {
+        const t = Math.min((now - startTime) / partDur, 1);
+        const ease = 1 - Math.pow(1 - t, 3);
+        mesh.position.lerpVectors(startPos, endPos, ease);
+        if (t < 1) {
+          requestAnimationFrame(step);
+        }
+      }
+      requestAnimationFrame(step);
+
+      idx++;
+      if (idx < sequence.length) {
+        setTimeout(animateOne, stagger);
+      } else {
+        setTimeout(() => { seqAnimating = false; if (onDone) onDone(); }, partDur);
+      }
+    }
+    animateOne();
+  }
+
+  // Update slider to reflect progress
+  function syncSlider(val) {
+    explodeProgress = val;
+    const slider = document.getElementById('timeline-slider');
+    slider.value = Math.round(val * 100);
+    document.getElementById('timeline-pct').textContent = Math.round(val * 100) + '%';
+  }
+
+  document.getElementById('btn-teardown').addEventListener('click', () => {
+    if (isTornDown || seqAnimating) return;
+    isTornDown = true;
+    playWhoosh();
+    sequentialAnimate(teardownSequence, explodedPositions, () => {
+      syncSlider(1);
+    });
+    document.getElementById('btn-teardown').disabled = true;
+    document.getElementById('btn-reassemble').disabled = false;
+    document.getElementById('status-text').textContent = 'Teardown in progress…';
+    // Gradually update slider during animation
+    const totalTime = teardownSequence.length * 300 + 400;
+    const sStart = performance.now();
+    (function tick() {
+      if (!isTornDown) return;
+      const p = Math.min((performance.now() - sStart) / totalTime, 1);
+      syncSlider(p);
+      if (p < 1) requestAnimationFrame(tick);
+      else document.getElementById('status-text').textContent = 'Exploded view — Click parts to inspect';
+    })();
+  });
+
+  document.getElementById('btn-reassemble').addEventListener('click', () => {
+    if (!isTornDown || seqAnimating) return;
+    isTornDown = false;
+    playWhoosh();
+    sequentialAnimate(reassembleSequence, originalPositions, () => {
+      syncSlider(0);
+    });
+    document.getElementById('btn-reassemble').disabled = true;
+    document.getElementById('btn-teardown').disabled = false;
+    document.getElementById('status-text').textContent = 'Reassembling…';
+    const totalTime = reassembleSequence.length * 300 + 400;
+    const sStart = performance.now();
+    (function tick() {
+      if (isTornDown) return;
+      const p = 1 - Math.min((performance.now() - sStart) / totalTime, 1);
+      syncSlider(p);
+      if (p > 0) requestAnimationFrame(tick);
+      else document.getElementById('status-text').textContent = 'Assembled — Orbit: drag · Zoom: scroll · Pan: right-drag';
+    })();
+  });
+
+  // ═══════════════════════════════════════════
+  // TIMELINE SLIDER (scrub exploded state)
+  // ═══════════════════════════════════════════
+  const timelineSlider = document.getElementById('timeline-slider');
+  timelineSlider.addEventListener('input', () => {
+    if (seqAnimating) return;
+    const val = parseInt(timelineSlider.value) / 100;
+    explodeProgress = val;
+    document.getElementById('timeline-pct').textContent = Math.round(val * 100) + '%';
+
+    ENGINE_PARTS.forEach(part => {
+      const mesh = partMap[part.id];
+      mesh.position.lerpVectors(originalPositions[part.id], explodedPositions[part.id], val);
+    });
+
+    // Update button states
+    if (val > 0.5 && !isTornDown) {
+      isTornDown = true;
+      document.getElementById('btn-teardown').disabled = true;
+      document.getElementById('btn-reassemble').disabled = false;
+    } else if (val <= 0.5 && isTornDown) {
+      isTornDown = false;
+      document.getElementById('btn-teardown').disabled = false;
+      document.getElementById('btn-reassemble').disabled = true;
+    }
+    if (val === 0) {
+      document.getElementById('btn-reassemble').disabled = true;
+      document.getElementById('btn-teardown').disabled = false;
+      isTornDown = false;
+    }
+    if (val === 1) {
+      document.getElementById('btn-teardown').disabled = true;
+      document.getElementById('btn-reassemble').disabled = false;
+      isTornDown = true;
+    }
+    document.getElementById('status-text').textContent =
+      val === 0 ? 'Assembled — Orbit: drag · Zoom: scroll · Pan: right-drag' :
+      val === 1 ? 'Fully exploded — Click parts to inspect' :
+      'Explode: ' + Math.round(val * 100) + '%';
+  });
+
+  // ═══════════════════════════════════════════
+  // VISUALIZATION MODES
+  // ═══════════════════════════════════════════
+  let activeMode = null; // 'oil' | 'heat' | 'xray' | null
+
+  // Oil flow particles
+  const OIL_COUNT = 300;
+  const oilPositions = new Float32Array(OIL_COUNT * 3);
+  const oilVelocities = [];
+  // Oil path: sump → pump → crankshaft → cylinder → head → back down
+  const oilPathParts = ENGINE_PARTS.filter(p => p.oilPath);
+  const oilPathPoints = oilPathParts.map(p => new THREE.Vector3(...p.offset));
+
+  function resetOilParticle(i) {
+    const pathIdx = Math.floor(Math.random() * oilPathPoints.length);
+    const pt = oilPathPoints[pathIdx];
+    oilPositions[i*3]   = pt.x + (Math.random()-0.5)*0.5;
+    oilPositions[i*3+1] = pt.y + (Math.random()-0.5)*0.5;
+    oilPositions[i*3+2] = pt.z + (Math.random()-0.5)*0.5;
+    const nextIdx = (pathIdx + 1) % oilPathPoints.length;
+    const next = oilPathPoints[nextIdx];
+    const dir = new THREE.Vector3().subVectors(next, pt).normalize().multiplyScalar(0.03);
+    oilVelocities[i] = { x: dir.x, y: dir.y, z: dir.z, life: 0, maxLife: 60 + Math.random()*60, pathIdx };
+  }
+  for (let i=0; i<OIL_COUNT; i++) resetOilParticle(i);
+
+  const oilGeo = new THREE.BufferGeometry();
+  oilGeo.setAttribute('position', new THREE.BufferAttribute(oilPositions, 3));
+  const oilMat = new THREE.PointsMaterial({
+    color: 0xf0b020, size: 0.08, transparent: true, opacity: 0.8,
+    blending: THREE.AdditiveBlending, depthWrite: false
+  });
+  const oilParticles = new THREE.Points(oilGeo, oilMat);
+  oilParticles.visible = false;
+  scene.add(oilParticles);
+
+  function updateOilParticles() {
+    if (activeMode !== 'oil') return;
+    const pos = oilGeo.attributes.position.array;
+    for (let i=0; i<OIL_COUNT; i++) {
+      const v = oilVelocities[i];
+      v.life++;
+      if (v.life > v.maxLife) {
+        resetOilParticle(i);
+        continue;
+      }
+      // Move toward next path point
+      const nextIdx = (v.pathIdx + 1) % oilPathPoints.length;
+      const target = oilPathPoints[nextIdx];
+      const cx = pos[i*3], cy = pos[i*3+1], cz = pos[i*3+2];
+      const dx = target.x - cx, dy = target.y - cy, dz = target.z - cz;
+      const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+      if (dist < 0.3) {
+        v.pathIdx = nextIdx;
+      }
+      const spd = 0.04;
+      pos[i*3]   += (dx / (dist+0.01)) * spd + (Math.random()-0.5)*0.01;
+      pos[i*3+1] += (dy / (dist+0.01)) * spd + (Math.random()-0.5)*0.01;
+      pos[i*3+2] += (dz / (dist+0.01)) * spd + (Math.random()-0.5)*0.01;
+    }
+    oilGeo.attributes.position.needsUpdate = true;
+  }
+
+  // Heat map colors
+  function getHeatColor(level) {
+    // 0 = blue cold, 1 = red hot
+    const r = Math.floor(level * 255);
+    const b = Math.floor((1 - level) * 255);
+    const g = Math.floor(Math.max(0, 1 - Math.abs(level - 0.5) * 2) * 180);
+    return new THREE.Color(r/255, g/255, b/255);
+  }
+
+  function applyHeatMap() {
+    ENGINE_PARTS.forEach(part => {
+      const color = getHeatColor(part.heatLevel);
+      partMap[part.id].traverse(child => {
+        if (child.isMesh) {
+          child.material = new THREE.MeshStandardMaterial({
+            color, metalness: 0.3, roughness: 0.5,
+            emissive: color, emissiveIntensity: part.heatLevel * 0.3,
+          });
+        }
+      });
+    });
+  }
+
+  function applyXRay() {
+    ENGINE_PARTS.forEach(part => {
+      partMap[part.id].traverse(child => {
+        if (child.isMesh) {
+          if (part.xrayOuter) {
+            const mat = child.material.clone();
+            mat.transparent = true;
+            mat.opacity = 0.2;
+            mat.depthWrite = false;
+            child.material = mat;
+          } else {
+            const mat = child.material.clone();
+            mat.emissive = new THREE.Color(0x3388ff);
+            mat.emissiveIntensity = 0.15;
+            child.material = mat;
+          }
+        }
+      });
+    });
+  }
+
+  function restoreOriginalMaterials() {
+    ENGINE_PARTS.forEach(part => {
+      const mats = originalMaterials[part.id];
+      mats.forEach(({mesh, material}) => {
+        mesh.material = material;
+      });
+    });
+    // Reapply highlight if selected
+    if (selectedPartId) highlightPart(selectedPartId);
+  }
+
+  function setMode(mode) {
+    const toast = document.getElementById('mode-toast');
+    if (activeMode === mode) {
+      // Toggle off
+      activeMode = null;
+      restoreOriginalMaterials();
+      oilParticles.visible = false;
+      document.querySelectorAll('[data-mode]').forEach(b => b.classList.remove('active'));
+      toast.classList.remove('show');
+      return;
+    }
+
+    // Restore first
+    restoreOriginalMaterials();
+    oilParticles.visible = false;
+    document.querySelectorAll('[data-mode]').forEach(b => b.classList.remove('active'));
+
+    activeMode = mode;
+    const btn = document.querySelector(`[data-mode="${mode}"]`);
+    if (btn) btn.classList.add('active');
+
+    toast.className = 'mode-toast ' + mode;
+    toast.textContent = mode === 'oil' ? '🛢 Oil Flow Visualization' :
+                        mode === 'heat' ? '🌡 Thermal Heat Map' :
+                        '✦ X-Ray Transparency';
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2000);
+
+    if (mode === 'oil') {
+      oilParticles.visible = true;
+      // Reset oil particles
+      for (let i=0;i<OIL_COUNT;i++) resetOilParticle(i);
+    } else if (mode === 'heat') {
+      applyHeatMap();
+    } else if (mode === 'xray') {
+      applyXRay();
+    }
+  }
+
+  document.getElementById('btn-oil').addEventListener('click', () => setMode('oil'));
+  document.getElementById('btn-heat').addEventListener('click', () => setMode('heat'));
+  document.getElementById('btn-xray').addEventListener('click', () => setMode('xray'));
+
+  // ═══════════════════════════════════════════
+  // WIREFRAME / AUTO-ROTATE / LABELS
+  // ═══════════════════════════════════════════
+  document.getElementById('chk-wireframe').addEventListener('change', (e) => {
+    const wireframe = e.target.checked;
+    engineGroup.traverse(child => {
+      if (child.isMesh) child.material.wireframe = wireframe;
+    });
+  });
+
+  document.getElementById('chk-autorotate').addEventListener('change', (e) => {
+    controls.autoRotate = e.target.checked;
+    controls.autoRotateSpeed = 1.5;
+  });
+
+  const labelContainer = document.getElementById('label-container');
+  let showLabels = true;
+  document.getElementById('chk-labels').addEventListener('change', (e) => {
+    showLabels = e.target.checked;
+    labelContainer.style.display = showLabels ? 'block' : 'none';
+  });
+
+  const labelElements = {};
+  ENGINE_PARTS.forEach(part => {
+    const el = document.createElement('div');
+    el.className = 'part-label';
+    el.textContent = part.name;
+    labelContainer.appendChild(el);
+    labelElements[part.id] = el;
+  });
+
+  function updateLabels() {
+    if (!showLabels) return;
+    ENGINE_PARTS.forEach(part => {
+      const mesh = partMap[part.id];
+      if (!mesh.visible) { labelElements[part.id].style.display = 'none'; return; }
+      const pos = new THREE.Vector3();
+      mesh.getWorldPosition(pos);
+      pos.y += 0.5;
+      pos.project(camera);
+      const rect = renderer.domElement.getBoundingClientRect();
+      const x = (pos.x * 0.5 + 0.5) * rect.width;
+      const y = (-pos.y * 0.5 + 0.5) * rect.height;
+      const label = labelElements[part.id];
+      if (pos.z > 1 || x < -50 || x > rect.width + 50 || y < -50 || y > rect.height + 50) {
+        label.style.display = 'none';
+      } else {
+        label.style.display = 'block';
+        label.style.left = x + 'px';
+        label.style.top = y + 'px';
+      }
+    });
+  }
+
+  // ═══════════════════════════════════════════
+  // PANEL TABS + PARTS LIST
+  // ═══════════════════════════════════════════
+  function switchTab(tabId) {
+    document.querySelectorAll('.panel-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabId));
+    document.querySelectorAll('.info-section').forEach(s => s.classList.toggle('active', s.id === 'tab-' + tabId));
+  }
+  document.querySelectorAll('.panel-tab').forEach(tab => {
+    tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+  });
+
+  const partsList = document.getElementById('parts-list');
+  ENGINE_PARTS.forEach(part => {
+    const item = document.createElement('div');
+    item.className = 'part-item';
+    item.dataset.partId = part.id;
+
+    const colorDot = document.createElement('div');
+    colorDot.className = 'part-color';
+    colorDot.style.background = '#' + part.color.toString(16).padStart(6, '0');
+
+    const name = document.createElement('span');
+    name.className = 'part-name';
+    name.textContent = part.name;
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = true;
+    checkbox.title = 'Show/hide ' + part.name;
+    checkbox.addEventListener('change', (e) => {
+      e.stopPropagation();
+      partMap[part.id].visible = checkbox.checked;
+    });
+
+    item.addEventListener('click', (e) => {
+      if (e.target === checkbox) return;
+      selectPart(part.id);
+    });
+
+    item.appendChild(colorDot);
+    item.appendChild(name);
+    item.appendChild(checkbox);
+    partsList.appendChild(item);
+  });
+
+  // ═══════════════════════════════════════════
+  // RESIZE + RENDER LOOP
+  // ═══════════════════════════════════════════
+  function onResize() {
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
+  }
+  window.addEventListener('resize', onResize);
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    updateDust();
+    updateOilParticles();
+    updateLabels();
+    renderer.render(scene, camera);
+  }
+
+  onResize();
+  animate();
+
+})();
+</script>
